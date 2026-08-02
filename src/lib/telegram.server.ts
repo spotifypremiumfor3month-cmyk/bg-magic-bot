@@ -19,8 +19,19 @@ async function call<T = unknown>(method: string, payload: unknown): Promise<T> {
   return json.result as T;
 }
 
-export function sendMessage(chatId: number, text: string) {
-  return call("sendMessage", { chat_id: chatId, text, parse_mode: "HTML" });
+export type InlineKeyboard = Array<Array<{ text: string; url?: string; callback_data?: string }>>;
+
+export function sendMessage(chatId: number, text: string, keyboard?: InlineKeyboard) {
+  return call("sendMessage", {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    ...(keyboard ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+  });
+}
+
+export function answerCallbackQuery(id: string, text?: string) {
+  return call("answerCallbackQuery", { callback_query_id: id, text }).catch(() => undefined);
 }
 
 export function sendChatAction(chatId: number, action: string) {
@@ -39,10 +50,13 @@ export async function sendDocument(
   bytes: Uint8Array,
   filename: string,
   caption: string,
+  keyboard?: InlineKeyboard,
 ) {
   const form = new FormData();
   form.append("chat_id", String(chatId));
   form.append("caption", caption);
+  form.append("parse_mode", "HTML");
+  if (keyboard) form.append("reply_markup", JSON.stringify({ inline_keyboard: keyboard }));
   form.append(
     "document",
     new Blob([bytes as unknown as BlobPart], { type: "image/png" }),
@@ -55,5 +69,29 @@ export async function sendDocument(
   const json = (await response.json()) as { ok: boolean; description?: string };
   if (!response.ok || !json.ok) {
     throw new Error(`Telegram sendDocument failed: ${json.description ?? response.status}`);
+  }
+}
+
+export async function sendPhoto(
+  chatId: number,
+  bytes: Uint8Array,
+  filename: string,
+  caption: string,
+  keyboard?: InlineKeyboard,
+) {
+  const form = new FormData();
+  form.append("chat_id", String(chatId));
+  form.append("caption", caption);
+  form.append("parse_mode", "HTML");
+  if (keyboard) form.append("reply_markup", JSON.stringify({ inline_keyboard: keyboard }));
+  form.append(
+    "photo",
+    new Blob([bytes as unknown as BlobPart], { type: "image/png" }),
+    filename,
+  );
+  const response = await fetch(`${API}/bot${token()}/sendPhoto`, { method: "POST", body: form });
+  const json = (await response.json()) as { ok: boolean; description?: string };
+  if (!response.ok || !json.ok) {
+    throw new Error(`Telegram sendPhoto failed: ${json.description ?? response.status}`);
   }
 }

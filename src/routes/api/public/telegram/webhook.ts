@@ -1,22 +1,51 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { removeBackground } from "@/lib/bg-remove.server";
+import { blackBackground, removeBackground } from "@/lib/bg-remove.server";
 import {
+  answerCallbackQuery,
   downloadFile,
   sendChatAction,
   sendDocument,
   sendMessage,
+  sendPhoto,
+  type InlineKeyboard,
 } from "@/lib/telegram.server";
 
 const WELCOME = [
-  "✨ <b>Background Remover Bot</b>",
+  "⚫️✨ <b>MAGIC BACKGROUND REMOVER</b> ✨⚫️",
+  "━━━━━━━━━━━━━━━━━━",
   "",
-  "Send me any photo and I'll return it with the background removed — studio quality, transparent PNG, completely free.",
+  "📸 Drop any photo → get a <b>studio-quality cut-out</b> in seconds.",
   "",
-  "Tips:",
-  "• Send the photo as a <b>file</b> for maximum resolution.",
-  "• You get the result back as a PNG document so transparency is preserved.",
+  "🖤 <b>Black preview</b> — crisp, no white or grey haze",
+  "🫧 <b>Transparent PNG</b> — ready for design work",
+  "🚀 <b>Unlimited &amp; 100% free</b>, forever",
+  "",
+  "Tap a button below or just send a photo 👇",
 ].join("\n");
+
+const HELP = [
+  "💡 <b>Pro tips for perfect cut-outs</b>",
+  "",
+  "1️⃣ Send as a <b>file</b> for max resolution",
+  "2️⃣ Good lighting = sharper edges",
+  "3️⃣ Save the <b>PNG document</b> (not the preview) to keep transparency",
+  "",
+  "Now send me a photo 🪄",
+].join("\n");
+
+const MENU: InlineKeyboard = [
+  [{ text: "🪄 Remove a background", callback_data: "start" }],
+  [
+    { text: "💡 Tips", callback_data: "help" },
+    { text: "ℹ️ About", callback_data: "about" },
+  ],
+];
+
+const RESULT_KEYS: InlineKeyboard = [
+  [{ text: "🔁 Do another photo", callback_data: "start" }],
+  [{ text: "💡 Tips", callback_data: "help" }],
+];
 
 async function sha256Base64Url(input: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
@@ -48,7 +77,35 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
         const update = (await request.json()) as {
           message?: TelegramMessage;
           edited_message?: TelegramMessage;
+          callback_query?: {
+            id: string;
+            data?: string;
+            message?: { chat?: { id?: number } };
+          };
         };
+
+        const cb = update.callback_query;
+        if (cb) {
+          const cbChat = cb.message?.chat?.id;
+          await answerCallbackQuery(cb.id);
+          if (cbChat) {
+            const text =
+              cb.data === "help"
+                ? HELP
+                : cb.data === "about"
+                  ? [
+                      "ℹ️ <b>About this bot</b>",
+                      "",
+                      "AI-powered background removal with pixel-perfect edges — hair, fur and fine detail included.",
+                      "",
+                      "No watermarks. No limits. No cost. 🖤",
+                    ].join("\n")
+                  : "📸 Go ahead — send me the photo and I'll work my magic 🪄";
+            await sendMessage(cbChat, text, MENU);
+          }
+          return Response.json({ ok: true });
+        }
+
         const message = update.message ?? update.edited_message;
         const chatId = message?.chat?.id;
         if (!chatId) return Response.json({ ok: true });
@@ -59,22 +116,37 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
           const isImageDoc = !!doc?.mime_type?.startsWith("image/");
 
           if (!photo && !isImageDoc) {
-            await sendMessage(chatId, WELCOME);
+            await sendMessage(chatId, message?.text === "/help" ? HELP : WELCOME, MENU);
             return Response.json({ ok: true });
           }
 
-          await sendChatAction(chatId, "upload_document");
+          await sendChatAction(chatId, "upload_photo");
 
           const fileId = photo ? photo.file_id : doc!.file_id;
           const mime = photo ? "image/jpeg" : (doc!.mime_type ?? "image/jpeg");
           const bytes = await downloadFile(fileId);
-          const cutout = await removeBackground(bytes, mime);
+          const [cutout, onBlack] = await Promise.all([
+            removeBackground(bytes, mime),
+            blackBackground(bytes, mime).catch(() => null),
+          ]);
 
+          if (onBlack) {
+            await sendChatAction(chatId, "upload_photo");
+            await sendPhoto(
+              chatId,
+              onBlack,
+              "preview-black.png",
+              "🖤 <b>Preview on pure black</b> — clean edges, zero haze.",
+            );
+          }
+
+          await sendChatAction(chatId, "upload_document");
           await sendDocument(
             chatId,
             cutout,
             "background-removed.png",
-            "✅ Background removed — transparent PNG, free forever.",
+            "🫧 <b>Transparent PNG</b> — download this one to keep the alpha channel.\n\n✨ Free forever.",
+            RESULT_KEYS,
           );
         } catch (error) {
           const reason = error instanceof Error ? error.message : "unknown";
@@ -85,7 +157,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               : reason === "NO_CREDITS"
                 ? "⚠️ The bot is temporarily out of processing capacity. Please try again later."
                 : "❌ Sorry, I couldn't process that image. Try another photo.";
-          await sendMessage(chatId, text).catch(() => undefined);
+          await sendMessage(chatId, text, MENU).catch(() => undefined);
         }
 
         return Response.json({ ok: true });

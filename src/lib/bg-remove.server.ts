@@ -1,6 +1,6 @@
 const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-const PROMPT = [
+const CUTOUT_PROMPT = [
   "Remove the background of this image with professional, studio-quality precision.",
   "Keep the main subject perfectly intact with clean, sharp, anti-aliased edges,",
   "preserving fine details such as hair strands, fur, transparency and soft shadows on the subject itself.",
@@ -9,8 +9,17 @@ const PROMPT = [
   "Do not crop, resize, restyle or alter the subject in any way.",
 ].join(" ");
 
-/** Returns a PNG buffer of the subject cut out on a transparent background. */
-export async function removeBackground(
+const BLACK_PROMPT = [
+  "Remove the background of this image with professional, studio-quality precision.",
+  "Keep the main subject perfectly intact with clean, sharp, anti-aliased edges,",
+  "preserving fine details such as hair strands and fur.",
+  "Place the isolated subject on a completely solid pure black background (#000000),",
+  "edge to edge, with absolutely no white, grey, checkerboard, gradient or vignette anywhere.",
+  "Do not add any watermark, text, border, shadow or reflection, and do not crop, resize or restyle the subject.",
+].join(" ");
+
+async function generate(
+  prompt: string,
   imageBytes: ArrayBuffer,
   mimeType: string,
 ): Promise<Uint8Array> {
@@ -32,7 +41,7 @@ export async function removeBackground(
         {
           role: "user",
           content: [
-            { type: "text", text: PROMPT },
+            { type: "text", text: prompt },
             {
               type: "image_url",
               image_url: { url: `data:${mimeType};base64,${base64}` },
@@ -62,6 +71,16 @@ export async function removeBackground(
   }
 
   return base64ToBytes(url.slice(url.indexOf(",") + 1));
+}
+
+/** Returns a PNG buffer of the subject cut out on a transparent background. */
+export function removeBackground(imageBytes: ArrayBuffer, mimeType: string) {
+  return generate(CUTOUT_PROMPT, imageBytes, mimeType);
+}
+
+/** Returns a PNG buffer of the subject on a solid pure-black background. */
+export function blackBackground(imageBytes: ArrayBuffer, mimeType: string) {
+  return generate(BLACK_PROMPT, imageBytes, mimeType);
 }
 
 function bytesToBase64(bytes: Uint8Array): string {

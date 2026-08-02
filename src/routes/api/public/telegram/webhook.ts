@@ -12,39 +12,49 @@ import {
 } from "@/lib/telegram.server";
 
 const WELCOME = [
-  "⚫️✨ <b>MAGIC BACKGROUND REMOVER</b> ✨⚫️",
-  "━━━━━━━━━━━━━━━━━━",
+  "🖤 <b>𝗕𝗔𝗖𝗞𝗚𝗥𝗢𝗨𝗡𝗗 𝗥𝗘𝗠𝗢𝗩𝗘𝗥</b> ✨",
+  "<i>Studio-quality cut-outs in seconds</i>",
   "",
-  "📸 Drop any photo → get a <b>studio-quality cut-out</b> in seconds.",
+  "<blockquote>Send me any photo and I'll erase the background with pixel-perfect edges — hair, fur and fine detail included.</blockquote>",
   "",
-  "🖤 <b>Black preview</b> — crisp, no white or grey haze",
-  "🫧 <b>Transparent PNG</b> — ready for design work",
-  "🚀 <b>Unlimited &amp; 100% free</b>, forever",
+  "🖤 <b>Black preview</b> — crisp, zero haze",
+  "🫧 <b>Transparent PNG</b> — ready for design",
+  "🚀 <b>Unlimited &amp; free</b> — forever",
   "",
-  "Tap a button below or just send a photo 👇",
+  "👇 <i>Tap a button or just drop a photo</i>",
 ].join("\n");
 
 const HELP = [
-  "💡 <b>Pro tips for perfect cut-outs</b>",
+  "💡 <b>𝗣𝗥𝗢 𝗧𝗜𝗣𝗦</b>",
   "",
-  "1️⃣ Send as a <b>file</b> for max resolution",
-  "2️⃣ Good lighting = sharper edges",
-  "3️⃣ Save the <b>PNG document</b> (not the preview) to keep transparency",
+  "<b>1.</b> Send as a <b>file</b> for max resolution",
+  "<b>2.</b> Good lighting = sharper edges",
+  "<b>3.</b> Save the <code>.png</code> document, not the preview — that's the one with transparency",
   "",
-  "Now send me a photo 🪄",
+  "<i>Now send me a photo</i> 🪄",
+].join("\n");
+
+const ABOUT = [
+  "ℹ️ <b>𝗔𝗕𝗢𝗨𝗧</b>",
+  "",
+  "<blockquote>AI-powered background removal with pixel-perfect edges — hair, fur and fine detail included.</blockquote>",
+  "",
+  "🚫 No watermarks",
+  "🚫 No limits",
+  "💸 No cost",
 ].join("\n");
 
 const MENU: InlineKeyboard = [
-  [{ text: "🪄 Remove a background", callback_data: "start" }],
+  [{ text: "🪄 Remove a Background", callback_data: "start" }],
   [
-    { text: "💡 Tips", callback_data: "help" },
+    { text: "💡 Pro Tips", callback_data: "help" },
     { text: "ℹ️ About", callback_data: "about" },
   ],
 ];
 
 const RESULT_KEYS: InlineKeyboard = [
-  [{ text: "🔁 Do another photo", callback_data: "start" }],
-  [{ text: "💡 Tips", callback_data: "help" }],
+  [{ text: "🔁 Do Another Photo", callback_data: "start" }],
+  [{ text: "💡 Pro Tips", callback_data: "help" }],
 ];
 
 async function sha256Base64Url(input: string): Promise<string> {
@@ -87,20 +97,16 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
         const cb = update.callback_query;
         if (cb) {
           const cbChat = cb.message?.chat?.id;
-          await answerCallbackQuery(cb.id);
+          const toast =
+            cb.data === "help" ? "💡 Pro tips" : cb.data === "about" ? "ℹ️ About" : "🪄 Send a photo!";
+          await answerCallbackQuery(cb.id, toast);
           if (cbChat) {
             const text =
               cb.data === "help"
                 ? HELP
                 : cb.data === "about"
-                  ? [
-                      "ℹ️ <b>About this bot</b>",
-                      "",
-                      "AI-powered background removal with pixel-perfect edges — hair, fur and fine detail included.",
-                      "",
-                      "No watermarks. No limits. No cost. 🖤",
-                    ].join("\n")
-                  : "📸 Go ahead — send me the photo and I'll work my magic 🪄";
+                  ? ABOUT
+                  : "📸 <b>Ready when you are</b>\n\n<i>Drop the photo here and I'll work my magic</i> 🪄";
             await sendMessage(cbChat, text, MENU);
           }
           return Response.json({ ok: true });
@@ -136,7 +142,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
               chatId,
               onBlack,
               "preview-black.png",
-              "🖤 <b>Preview on pure black</b> — clean edges, zero haze.",
+              "🖤 <b>Preview on pure black</b>\n<i>Clean edges, zero haze</i>",
             );
           }
 
@@ -145,7 +151,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             chatId,
             cutout,
             "background-removed.png",
-            "🫧 <b>Transparent PNG</b> — download this one to keep the alpha channel.\n\n✨ Free forever.",
+            "🫧 <b>Transparent PNG</b>\n<i>Download this one to keep the alpha channel</i>\n\n✨ <b>Free forever</b>",
             RESULT_KEYS,
           );
         } catch (error) {

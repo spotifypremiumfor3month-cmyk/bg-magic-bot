@@ -161,7 +161,7 @@ export const Route = createFileRoute("/api/public/telegram/webhook")({
             reason === "RATE_LIMIT"
               ? "⏳ Too many requests right now. Please try again in a minute."
               : reason === "NO_CREDITS"
-                ? "⚠️ The bot is temporarily out of processing capacity. Please try again later."
+                ? "🕛 <b>Free daily quota reached</b>\n\n<blockquote>The bot is always free — its free processing allowance for today just ran out. It refills automatically, so please try again in a few hours.</blockquote>"
                 : "❌ Sorry, I couldn't process that image. Try another photo.";
           await sendMessage(chatId, text, MENU).catch(() => undefined);
         }
